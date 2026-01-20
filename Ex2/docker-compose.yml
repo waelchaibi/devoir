@@ -8,7 +8,6 @@ services:
       dockerfile: docker/Dockerfile.sqlite
     volumes:
       - ./sqlite_data:/database
-      - ./sqlite_data/backups:/backup
     networks:
       - app_network
 
