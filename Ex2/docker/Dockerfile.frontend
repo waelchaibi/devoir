@@ -1,0 +1,11 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+RUN npm install node-fetch@2
+
+COPY frontend/ .
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]

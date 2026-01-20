@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+RUN mkdir -p /database /backup
+
+CMD sh -c " \
+  while true; do \
+    if [ -f /database/app.db ]; then \
+      cp /database/app.db /backup/app.db.backup; \
+    fi; \
+    sleep 10; \
+  done \
+"
