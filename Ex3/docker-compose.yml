@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  tor:
+    image: dperson/torproxy
+    container_name: tor
+    restart: unless-stopped
+    environment:
+      LOCATION: FR
+      STRICT: 1
+      TOR_MaxCircuitDirtiness: 600
+    ports:
+      - "9050:9050"   # SOCKS5
+      - "9051:9051"   # Control
+    networks:
+      - tor_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - tor
+    networks:
+      - tor_net
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+    networks:
+      - tor_net
+
+networks:
+  tor_net:
+    driver: bridge
