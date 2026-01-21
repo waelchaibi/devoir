@@ -1,0 +1,81 @@
+services:
+  tor:
+    image: dperson/torproxy
+    container_name: tor
+    restart: unless-stopped
+    environment:
+      LOCATION: FR
+      STRICT: 1
+      TOR_MaxCircuitDirtiness: 600
+    ports:
+      - "9050:9050"   # SOCKS5
+      - "9051:9051"   # Control
+    networks:
+      - app_net
+
+  pg:
+    image: postgres:15-alpine
+    container_name: pg
+    restart: unless-stopped
+    env_file:
+      - ./docker/postgres.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - app_net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: unless-stopped
+    env_file:
+      - ./docker/pgadmin.env
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin_servers.json:/pgadmin4/servers.json
+    ports:
+      - "5050:80"
+    depends_on:
+      - pg
+    networks:
+      - app_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.dockerfile
+    container_name: backend
+    env_file:
+      - ./docker/backend.env
+    depends_on:
+      - tor
+      - pg
+    networks:
+      - app_net
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.dockerfile
+    container_name: frontend
+    env_file:
+      - ./docker/frontend.env
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; }
+        .form-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 10px; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-warning:hover { background: #e0a800; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #5a6268; }
+        .users-list { background: white; padding: 20px; border-radius: 8px; }
+        .user-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .user-item:last-child { border-bottom: none; }
+        .user-info { flex: 1; }
+        .user-actions { display: flex; gap: 10px; }
+        .loading { text-align: center; padding: 20px; }
+        .message { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .message.success { background: #d4edda; color: #155724; }
+        .message.error { background: #f8d7da; color: #721c24; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal-content { background: white; margin: 15% auto; padding: 20px; border-radius: 8px; width: 500px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>User Management</h1>
+        
+        <div id="message-container"></div>
+        
+        <div class="form-section">
+            <h2>Créer un utilisateur</h2>
+            <form id="create-form" onsubmit="createUser(event)">
+                <div class="form-group">
+                    <label>Nom:</label>
+                    <input type="text" id="create-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" id="create-email" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Créer</button>
+                <button type="button" class="btn btn-success" onclick="generateRandomUser()">Générer un utilisateur aléatoire</button>
+            </form>
+        </div>
+        
+        <div class="users-list">
+            <h2>Liste des utilisateurs</h2>
+            <button class="btn btn-secondary" onclick="loadUsers()">Actualiser</button>
+            <div id="users-container"></div>
+        </div>
+    </div>
+    
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <h2>Modifier l'utilisateur</h2>
+            <form id="edit-form" onsubmit="updateUser(event)">
+                <input type="hidden" id="edit-id">
+                <div class="form-group">
+                    <label>Nom:</label>
+                    <input type="text" id="edit-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" id="edit-email" required>
+                </div>
+                <button type="submit" class="btn btn-warning">Modifier</button>
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Annuler</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = '';
+        let editingUserId = null;
+        
+        function showMessage(message, type) {
+            const container = document.getElementById('message-container');
+            container.innerHTML = `<div class="message ${type}">${message}</div>`;
+            setTimeout(() => container.innerHTML = '', 3000);
+        }
+        
+        async function loadUsers() {
+            const container = document.getElementById('users-container');
+            container.innerHTML = '<div class="loading">Chargement...</div>';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/users`);
+                const data = await response.json();
+                
+                if (data.length > 0) {
+                    container.innerHTML = '';
+                    data.forEach(user => {
+                        const item = document.createElement('div');
+                        item.className = 'user-item';
+                        item.innerHTML = `
+                            <div class="user-info">
+                                <div><strong>ID:</strong> ${user.id}</div>
+                                <div><strong>Nom:</strong> ${user.name || 'N/A'}</div>
+                                <div><strong>Email:</strong> ${user.email || 'N/A'}</div>
+                                <div><strong>Créé le:</strong> ${new Date(user.created_at).toLocaleString()}</div>
+                            </div>
+                            <div class="user-actions">
+                                <button class="btn btn-warning" onclick="openEditModal(${user.id}, '${user.name}', '${user.email}')">Modifier</button>
+                                <button class="btn btn-danger" onclick="deleteUser(${user.id})">Supprimer</button>
+                            </div>
+                        `;
+                        container.appendChild(item);
+                    });
+                } else {
+                    container.innerHTML = '<div class="loading">Aucun utilisateur trouvé</div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div class="loading">Erreur: ' + error.message + '</div>';
+                showMessage('Erreur lors du chargement: ' + error.message, 'error');
+            }
+        }
+        
+        async function createUser(event) {
+            event.preventDefault();
+            const name = document.getElementById('create-name').value;
+            const email = document.getElementById('create-email').value;
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email })
+                });
+                
+                if (response.ok) {
+                    showMessage('Utilisateur créé avec succès', 'success');
+                    document.getElementById('create-form').reset();
+                    loadUsers();
+                } else {
+                    const data = await response.json();
+                    showMessage('Erreur: ' + (data.error || 'Erreur inconnue'), 'error');
+                }
+            } catch (error) {
+                showMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        async function generateRandomUser() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/random-user`);
+                const data = await response.json();
+                
+                if (data.results && data.results.length > 0) {
+                    const user = data.results[0];
+                    const name = `${user.name.first} ${user.name.last}`;
+                    const email = user.email;
+                    
+                    document.getElementById('create-name').value = name;
+                    document.getElementById('create-email').value = email;
+                    showMessage('Utilisateur aléatoire généré (via Tor)', 'success');
+                }
+            } catch (error) {
+                showMessage('Erreur lors de la génération: ' + error.message, 'error');
+            }
+        }
+        
+        function openEditModal(id, name, email) {
+            editingUserId = id;
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-name').value = name;
+            document.getElementById('edit-email').value = email;
+            document.getElementById('edit-modal').style.display = 'block';
+        }
+        
+        function closeEditModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+            editingUserId = null;
+        }
+        
+        async function updateUser(event) {
+            event.preventDefault();
+            const id = editingUserId;
+            const name = document.getElementById('edit-name').value;
+            const email = document.getElementById('edit-email').value;
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/users/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email })
+                });
+                
+                if (response.ok) {
+                    showMessage('Utilisateur modifié avec succès', 'success');
+                    closeEditModal();
+                    loadUsers();
+                } else {
+                    const data = await response.json();
+                    showMessage('Erreur: ' + (data.error || 'Erreur inconnue'), 'error');
+                }
+            } catch (error) {
+                showMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteUser(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/users/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showMessage('Utilisateur supprimé avec succès', 'success');
+                    loadUsers();
+                } else {
+                    const data = await response.json();
+                    showMessage('Erreur: ' + (data.error || 'Erreur inconnue'), 'error');
+                }
+            } catch (error) {
+                showMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        window.onclick = function(event) {
+            const modal = document.getElementById('edit-modal');
+            if (event.target == modal) {
+                closeEditModal();
+            }
+        }
+        
+        loadUsers();
+    </script>
+</body>
+</html>
